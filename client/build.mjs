@@ -3,13 +3,14 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
+import { validatePrimitiveExports } from './validate-primitives.mjs';
 
 const sourceDir = dirname(fileURLToPath(import.meta.url));
 const packageRoot = resolve(sourceDir, '..');
 const outputPath = resolve(packageRoot, 'client/client.js');
 const loaderId = process.env.DSH_POCKET_CLIENT_ID ?? 'dsh-pocket';
 
-const result = await build({
+const options = {
   entryPoints: [resolve(sourceDir, 'index.jsx')],
   bundle: true,
   format: 'cjs',
@@ -19,7 +20,14 @@ const result = await build({
   write: false,
   minify: process.env.NODE_ENV === 'production',
   legalComments: 'none',
-});
+};
+
+// Primitives belong to the host and are not a local development dependency.
+// Opt in with an explicit host entry; never use the validation bundle as output.
+if (process.env.DSH_POCKET_PRIMITIVES_ENTRY) {
+  await validatePrimitiveExports(options, process.env.DSH_POCKET_PRIMITIVES_ENTRY);
+}
+const result = await build(options);
 
 const bundled = result.outputFiles?.[0]?.text;
 if (!bundled) throw new Error('esbuild did not produce a client bundle');

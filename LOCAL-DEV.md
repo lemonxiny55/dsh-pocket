@@ -35,6 +35,35 @@ node client/build.mjs     # 只改后端可跳过
 npm test                  # 建议顺手跑一遍（当前 109 个用例）
 ```
 
+### 校验宿主 primitives 导出（可选）
+
+普通 `npm run build:client` 不需要安装宿主的
+`@deepseek-ai/dsh-client-ui-primitives`。但 esbuild 的 external 模块不会校验具名导出，
+因此构建成功不代表图标导入存在（见 issue #161）。联调某个 DSH 版本时，可显式指定
+该版本 primitives 包的 **ESM JavaScript 入口**（已安装包或解压的 npm 包均可）：
+
+```sh
+DSH_POCKET_PRIMITIVES_ENTRY=/path/to/dsh-client-ui-primitives/lib/index.js npm run build:client
+```
+
+PowerShell：
+
+```powershell
+$env:DSH_POCKET_PRIMITIVES_ENTRY = 'C:\path\to\dsh-client-ui-primitives\lib\index.js'
+npm run build:client
+Remove-Item Env:DSH_POCKET_PRIMITIVES_ENTRY
+```
+
+校验通过 esbuild 在内存中链接客户端与指定宿主入口，不执行宿主代码，也不要求安装
+其余宿主包或处理 CSS。相对 JavaScript 重导出会参与链接；其他包依赖和 CSS 保持
+external。缺失具名导出或入口无效时，构建失败且不会覆盖 `client/client.js`；校验通过
+后仍使用原有 external 配置生成产物，不把 primitives 打包进插件。
+
+这仅检查指定 ESM 版本的静态具名导入，不校验命名空间的动态属性读取、组件可渲染性，
+或 external 依赖中的重导出。CommonJS 入口不受支持。它与 #140 的运行时跨版本兼容
+互补，不能替代兼容层；例如 `…Outline16` 具名导入对仅提供 `…OutlineRegular` 的
+宿主会被此检查拒绝。
+
 ### 重启 dsh web
 
 直接 `kill` 后用 `nohup` 拉起**会被终端会话回收**，必须用 detached 方式（和插件自带的自重启同一套做法）：
